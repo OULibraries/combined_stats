@@ -32,7 +32,7 @@ function combined_stats_views_data() {
   //Fields
   $data['combined_stats']['suma_count'] = array(
     'title' => t('Suma Count'),
-    'help' => t('The Suma count of this location'),
+    'help' => t('The Suma count of all locations'),
     'field' => array(
       'handler' => 'combined_stats_handler_field',
       'click sortable' => TRUE,
@@ -42,6 +42,22 @@ function combined_stats_views_data() {
     ),
     'sort' => array(
       'handler' => 'views_handler_sort',
+    ),
+  );
+  $data['combined_stats']['libanswers_count'] = array(
+    'title' => t('Libanswers Count'),
+    'help' => t('The Libanswers count for all interactions'),
+    'field' => array(
+      'handler' => 'combined_stats_handler_field',
+      'click sortable' => TRUE,
+    ),
+  );
+  $data['combined_stats']['combined_count'] = array(
+    'title' => t('Combined Count'),
+    'help' => t('The combinatino of Suma and Libanswers'),
+    'field' => array(
+      'handler' => 'combined_stats_handler_field',
+      'click sortable' => TRUE,
     ),
   );
 
