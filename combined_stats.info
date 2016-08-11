@@ -1,0 +1,11 @@
+name = combined stats
+description = integration of combined stats through the api
+
+core = 7.x
+package = Drupal 7 Development
+
+files[] = combined_stats.module
+files[] = combined_stats.views.inc
+files[] = handlers/combined_stats_handler_field.inc
+files[] = plugins/combined_stats_plugin_query.inc
+files[] = handlers/combined_stats_field_option.inc
