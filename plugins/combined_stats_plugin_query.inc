@@ -49,11 +49,10 @@ class combined_stats_plugin_query extends views_plugin_query {
         $response = drupal_http_request($suma_url);
         $sumadata = json_decode($response->data);
         $arrayCount += count($sumadata->initiative->counts);
-        dpm($collection . ' arraycount ' . $arrayCount);
         $hasMore = ($sumadata->status->{'has more'});
         $offset = ($hasMore == 'true') ? $sumadata->status->offset : 0;
       }
-      $accumulativeCount += $arrayCount; dpm('acc ' . $accumulativeCount);
+      $accumulativeCount += $arrayCount;
     }
     $row = new stdClass();
     $row->suma_count = $accumulativeCount;
