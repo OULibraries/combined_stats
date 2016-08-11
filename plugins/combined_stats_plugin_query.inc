@@ -20,6 +20,14 @@ class combined_stats_plugin_query extends views_plugin_query {
     if ($mySuma == '') {
       return;
     }
+
+    //get the username and password for libanswers
+    $libanswers_stats_un = variable_get('libanswers_stats_un', '');
+    $libanswers_stats_pw = variable_get('libanswers_stats_pw', '');
+    if ($libanswers_stats_un == '' || $libanswers_stats_pw == '') {
+      return;
+    }
+
     //setting a start date if start date was deleted
     $time = date('Y-m-d H:i:s', strtotime('-1 hour'));
     $newDate = new DateTime($time, new DateTimeZone('UTC'));
@@ -31,7 +39,74 @@ class combined_stats_plugin_query extends views_plugin_query {
     //option for days, months, etc
     $spanOption = $this->options['spanOption'];
     $format = $this->options['format'];
+    
+    //get the start time for the suma total
     $startDate = $this->getStartTime($incNum, $spanOption);
+    
+    //get the start date and time (if hours are selected) for libanswers
+    $libanswersStartDate = $this->getLibanswersStartTime($incNum, $spanOption);
+    $libanswersStartHours = ($spanOption == 'hours') ? $this->getHours($incNum, $spanOption) : '';
+    
+    //manually setting an array of the different libanswers options
+    //these correspond with
+    //chat:1753; email:2474; sms:2476; inperson:2628, phone:2629
+    $arrayedInteractions = $this->options['interactions'];
+    $anid = explode(',', $arrayedInteractions);
+    $tally = 0;
+
+    //looping through each of the interaction options and getting the total number of interactions
+    foreach ($anid as $tempanid) {
+    $client = new GuzzleHttp\Client();
+    $jar = new GuzzleHttp\Cookie\CookieJar();
+
+      //setting the cookies (I think)
+    $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php', [
+      'cookies' => $jar,
+      'body' => [
+        'action' => '1',
+        'site_id' => '0',
+        'app_id' => '0',
+        'target' => '',
+        'public' => '0',
+        'mode' => '0',
+        's-libapps-email' => $libanswers_stats_un,
+        's-libapps-password' => $libanswers_stats_pw,
+      ]
+    ]);
+
+    $data = $response_login->json();
+    if ($data["errCode"] != "200") {
+      exit("bad response code, don't log in");
+    }
+
+    //passing login info to login page
+    $response_redirect = $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823', ['cookies' => $jar]);
+
+    $temp1 = tmpfile();
+
+      //this is going to be hit once for each interaction type
+      //then return the data for the csv to be tallied a few lines down
+      $response_data = $client->get('http://libanswers.ou.edu/process_tally.php?m=exportxls2&iid=1355&anid=' . $tempanid .
+        '&list=stats&start=' . $libanswersStartDate . '&hrstart=' . $libanswersStartHours, [
+        'cookies' => $jar,
+        'save_to' => $temp1
+      ]);
+
+      //setting the file position to 0
+      fseek($temp1, 0);
+
+      $columnHeads = TRUE;
+
+      //go through the rows and keep a running tally
+      while (($csvrow = fgetcsv($temp1)) !== FALSE) {
+        //we don't want the first row...which is the column titles
+        if ($columnHeads) {
+          $columnHeads = FALSE;
+          continue;
+        }
+        $tally++;
+      }
+    }
 
     //turn the comma separated list of collections into an array
     $preArrayLocation = $this->options['collection'];
@@ -56,6 +131,8 @@ class combined_stats_plugin_query extends views_plugin_query {
     }
     $row = new stdClass();
     $row->suma_count = $accumulativeCount;
+    $row->libanswers_count = $tally;
+    $row->combined_count = $accumulativeCount + $tally;
     $view->result[] = $row;
    }
 
@@ -75,6 +152,55 @@ class combined_stats_plugin_query extends views_plugin_query {
     return $defaultDate;
   }
 
+  function getLibanswersStartTime($inc = 0, $span = 0) {
+    //setting a start date if start date was deleted
+    if ($span == 'hours'){
+      $time = date('Y-m-d H:i:s');
+    }
+    else {
+      $time = date('Y-m-d H:i:s', strtotime('-' . $inc . ' ' . $span . ' '));
+    }
+    $newDate = new DateTime($time, new DateTimeZone('UTC'));
+    $newDate->setTimezone(new DateTimeZone('America/Chicago'));
+    $tempStartDate = $newDate->format('Y-m-d');
+    return $tempStartDate;
+  }
+
+  /**
+   * @param int $inc
+   * @param int $span
+   * @return string
+   *
+   * when hours are chosen libanswers needs an actual date
+   * that gives problems when it's on the other side of midnight
+   * this function should take care of that
+   */
+  function getHours($inc = 0, $span = 0) {
+    //setting a start hour if hour is the option passed in
+    //set the entered time and midnight to the same format
+    $time = date('Y-m-d H:i:s', strtotime('-' . $inc . ' ' . $span . ' '));
+    $midnight =date('Y-m-d H:i:s', strtotime('today midnight'));
+
+    //set the entered date to central timezone and keep midnight UTC
+    $newDate = new DateTime($time, new DateTimeZone('UTC'));
+    $newMidnight = new DateTime($midnight, new DateTimeZone('UTC'));
+    $newDate->setTimezone(new DateTimeZone('America/Chicago'));
+
+    //change both variables back to the same format for comparison
+    $strTime = strtotime($newDate->format('Y-m-d H:i:s'));
+    $strMidnight = strtotime($newMidnight->format('Y-m-d H:i:s'));
+
+    //send back a starting hour of zero if the entered time is
+    //previous to midnight
+    if ($strTime<$strMidnight) {
+      $tempStartHour = $newMidnight->format('H');
+    }
+    else {
+      $tempStartHour = $newDate->format('H');
+    }
+    return $tempStartHour;
+  }
+
   /**
    * @return array
    *
@@ -85,6 +211,9 @@ class combined_stats_plugin_query extends views_plugin_query {
 
     $options['collection'] = array(
       'default' => '1',
+    );
+    $options['interactions'] = array(
+      'default' => '1753',
     );
     $options['format'] = array(
       'default' => 'cal',
@@ -111,10 +240,23 @@ class combined_stats_plugin_query extends views_plugin_query {
     $form['collection'] = array(
       '#type' => 'textfield',
       '#title' => t('ID of Collection'),
-      '#description' => t('The ID of the collection that should return stats'),
+      '#description' => t('The ID of the collection that should return stats
+      For OU Libraries the options are as follows: Architecture-Services:13, Architecture-Count:14, Bizzell-Desk:<b>1</b>, BLT:<b>24</b>, Bookmark:<b>8</b>, Branches-Service:<b>2</b>,
+        Business-Service:<b>22</b>, EDGE-Count:<b>20</b>, EIC Count:<b>6</b>, Engineering-Count:<b>10</b>, Engineering-Service:<b>9</b>, FineArts-Count:<b>16</b>, FineArts-Service:<b>15</b>, 
+        GovDocs-Service:<b>19</b>, HCLC-Count:<b>5</b>, HCLC-Services:<b>3</b>, HOSService:<b>4</b>, KS-Services:<b>23</b>, WHC-Count:<b>21</b>, Youngblood-Count:<b>7</b>, Youngblood-Service:<b>12</b>'),
       '#default_value' => $this->options['collection'],
-      '#maxlength' => 10,
-      '#size' => 10,
+      '#maxlength' => 30,
+      '#size' => 30,
+    );
+    $form['interactions'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Types of interactions'),
+      '#description' => t('The anids of the interactions that should return stats. 
+        For OU Libraries the options are as follows: Chat:<b>1753</b>, Email:<b>2474</b>, SMS:<b>2476</b>, InPerson:<b>2628</b>, Phone:<b>2629</b>.
+        Make it a comma separated list with no spaces.'),
+      '#default_value' => $this->options['interactions'],
+      '#maxlength' => 30,
+      '#size' => 30,
     );
     $form['format'] = array(
       '#type' => 'textfield',
