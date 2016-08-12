@@ -18,7 +18,7 @@ class combined_stats_plugin_query extends views_plugin_query {
     //setting server variable
     $mySuma = variable_get('combined_suma_stats_server', "");
     if ($mySuma == '') {
-      return;
+      error_log('no longer using the configuration');
     }
 
     //get the username and password for libanswers
