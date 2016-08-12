@@ -54,7 +54,7 @@ function combined_stats_views_data() {
   );
   $data['combined_stats']['combined_count'] = array(
     'title' => t('Combined Count'),
-    'help' => t('The combinatino of Suma and Libanswers'),
+    'help' => t('The combination of Suma and Libanswers'),
     'field' => array(
       'handler' => 'combined_stats_handler_field',
       'click sortable' => TRUE,
