@@ -130,9 +130,9 @@ class combined_stats_plugin_query extends views_plugin_query {
       $accumulativeCount += $arrayCount;
     }
     $row = new stdClass();
-    $row->suma_count = $accumulativeCount;
-    $row->libanswers_count = $tally;
-    $row->combined_count = $accumulativeCount + $tally;
+    $row->suma_count = number_format($accumulativeCount);
+    $row->libanswers_count = number_format($tally);
+    $row->combined_count = number_format($accumulativeCount + $tally);
     $view->result[] = $row;
    }
 
