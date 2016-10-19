@@ -1,5 +1,5 @@
 <?php
-
+use GuzzleHttp\Message\Request;
 /**
  * @file
  *   Views query plugin for combined stats.
@@ -43,8 +43,8 @@ class combined_stats_plugin_query extends views_plugin_query {
         // if not...do all the things
         else {
           //get the username and password for libanswers
-          $libanswers_stats_un = variable_get('libanswers_stats_un', '');
-          $libanswers_stats_pw = variable_get('libanswers_stats_pw', '');
+          $libanswers_stats_un = 'libwebdev@ou.edu';
+          $libanswers_stats_pw = 'Nu@*UEtrp5mBuVUh';
           if ($libanswers_stats_un == '' || $libanswers_stats_pw == '') {
             return;
           }
@@ -59,14 +59,34 @@ class combined_stats_plugin_query extends views_plugin_query {
           $anid = explode(',', $arrayedInteractions);
           $tally = 0;
 
-          //looping through each of the interaction options and getting the total number of interactions
-          foreach ($anid as $tempanid) {
-            $client = new GuzzleHttp\Client();
-            $jar = new GuzzleHttp\Cookie\CookieJar();
+          $client = new GuzzleHttp\Client();
+          $jar = new GuzzleHttp\Cookie\CookieJar();
 
-            //setting the cookies (I think)
+          //setting the cookies (I think)
+//          try {
+//            error_log('hello1');
+//            $first = $client->get(
+//              'https://ou.libapps.com/libapps/login_process.php', [
+//              'cookies' => $jar]
+//            );
+
+            $response = $client->get('https://ou.libapps.com/libapps/login_process.php', ['cookies' => $jar]);
+          $values = $response->getHeader('Set-Cookie', true);
+          $exploded = explode('=', $values);
+          var_dump($jar);
+          $temp_explode = explode(';', $exploded[3]);
+          error_log($temp_explode[0]);
+
             $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php', [
               'cookies' => $jar,
+              'allow_redirects' => [
+                'max' => 10,        // allow at most 10 redirects.
+                'strict' => TRUE,      // use "strict" RFC compliant redirects.
+                'track_redirects' => TRUE,
+              ],
+              'headers' => [
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:51.0) Gecko/20100101 Firefox/51.0',
+              ],
               'body' => [
                 'action' => '1',
                 'site_id' => '0',
@@ -76,13 +96,23 @@ class combined_stats_plugin_query extends views_plugin_query {
                 'mode' => '0',
                 's-libapps-email' => $libanswers_stats_un,
                 's-libapps-password' => $libanswers_stats_pw,
+                'idtn' => $temp_explode,
               ]
             ]);
+            dpm('j,jglum');
 
             $data = $response_login->json();
             if ($data["errCode"] != "200") {
               exit("bad response code, don't log in");
             }
+//          } catch (Exception $e) {
+//            dpm('nope');
+////            dpm($e->getMessage());
+////            dpm($e->getTraceAsString());
+//          }
+
+          //looping through each of the interaction options and getting the total number of interactions
+          foreach ($anid as $tempanid) {
 
             //passing login info to login page
             $response_redirect = $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823', ['cookies' => $jar]);
