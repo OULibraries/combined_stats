@@ -71,11 +71,8 @@ class combined_stats_plugin_query extends views_plugin_query {
 //            );
 
             $response = $client->get('https://ou.libapps.com/libapps/login_process.php', ['cookies' => $jar]);
-          $values = $response->getHeader('Set-Cookie', true);
-          $exploded = explode('=', $values);
-          var_dump($jar);
-          $temp_explode = explode(';', $exploded[3]);
-          error_log($temp_explode[0]);
+          $jar_array = $jar->toArray();
+          $new_jar = $jar_array[1]["Value"];
 
             $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php', [
               'cookies' => $jar,
@@ -84,9 +81,9 @@ class combined_stats_plugin_query extends views_plugin_query {
                 'strict' => TRUE,      // use "strict" RFC compliant redirects.
                 'track_redirects' => TRUE,
               ],
-              'headers' => [
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:51.0) Gecko/20100101 Firefox/51.0',
-              ],
+//              'headers' => [
+//                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:51.0) Gecko/20100101 Firefox/51.0',
+//              ],
               'body' => [
                 'action' => '1',
                 'site_id' => '0',
@@ -96,13 +93,12 @@ class combined_stats_plugin_query extends views_plugin_query {
                 'mode' => '0',
                 's-libapps-email' => $libanswers_stats_un,
                 's-libapps-password' => $libanswers_stats_pw,
-                'idtn' => $temp_explode,
+                'idtn' => $new_jar,
               ]
             ]);
-            dpm('j,jglum');
 
-            $data = $response_login->json();
-            if ($data["errCode"] != "200") {
+            $data = $response_login->getStatusCode();
+            if ($data != "200") {
               exit("bad response code, don't log in");
             }
 //          } catch (Exception $e) {
@@ -112,28 +108,32 @@ class combined_stats_plugin_query extends views_plugin_query {
 //          }
 
           //looping through each of the interaction options and getting the total number of interactions
-          foreach ($anid as $tempanid) {
+          foreach ($anid as $tempanid) { dpm('yep');
 
             //passing login info to login page
             $response_redirect = $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823', ['cookies' => $jar]);
 
-            $temp1 = tmpfile();
+            $tempfile = tempnam(sys_get_temp_dir(), 'tempfile');
 
             //this is going to be hit once for each interaction type
             //then return the data for the csv to be tallied a few lines down
             $response_data = $client->get('http://libanswers.ou.edu/process_tally.php?m=exportxls2&iid=1355&anid=' . $tempanid .
               '&list=stats&start=' . $libanswersStartDate . '&hrstart=' . $libanswersStartHours, [
               'cookies' => $jar,
-              'save_to' => $temp1
+              'save_to' => $tempfile,
             ]);
 
+            $temp1 = fopen($tempfile, 'w');
+var_dump($temp1);
+            dpm(fopen($tempfile, 'w'));
+//            $resource = fopen('sites/all/modules/combined_stats/plugins/temp/temp', 'w');
             //setting the file position to 0
             fseek($temp1, 0);
 
             $columnHeads = TRUE;
 
             //go through the rows and keep a running tally
-            while (($csvrow = fgetcsv($temp1)) !== FALSE) {
+            while (($csvrow = fgetcsv($temp1)) !== FALSE) { dpm($tally);
               //we don't want the first row...which is the column titles
               if ($columnHeads) {
                 $columnHeads = FALSE;
