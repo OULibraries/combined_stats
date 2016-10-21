@@ -1,5 +1,5 @@
 <?php
-
+use GuzzleHttp\Message\Request;
 /**
  * @file
  *   Views query plugin for combined stats.
@@ -42,12 +42,14 @@ class combined_stats_plugin_query extends views_plugin_query {
         }
         // if not...do all the things
         else {
+
           //get the username and password for libanswers
           $libanswers_stats_un = variable_get('libanswers_stats_un', '');
           $libanswers_stats_pw = variable_get('libanswers_stats_pw', '');
           if ($libanswers_stats_un == '' || $libanswers_stats_pw == '') {
             return;
           }
+
           //get the start date and time (if hours are selected) for libanswers
           $libanswersStartDate = $this->getLibanswersStartTime($incNum, $spanOption);
           $libanswersStartHours = ($spanOption == 'hours') ? $this->getHours($incNum, $spanOption) : '';
@@ -59,44 +61,67 @@ class combined_stats_plugin_query extends views_plugin_query {
           $anid = explode(',', $arrayedInteractions);
           $tally = 0;
 
-          //looping through each of the interaction options and getting the total number of interactions
-          foreach ($anid as $tempanid) {
-            $client = new GuzzleHttp\Client();
-            $jar = new GuzzleHttp\Cookie\CookieJar();
+          $client = new GuzzleHttp\Client();
+          $jar = new GuzzleHttp\Cookie\CookieJar();
 
-            //setting the cookies (I think)
-            $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php', [
-              'cookies' => $jar,
-              'body' => [
-                'action' => '1',
-                'site_id' => '0',
-                'app_id' => '0',
-                'target' => '',
-                'public' => '0',
-                'mode' => '0',
-                's-libapps-email' => $libanswers_stats_un,
-                's-libapps-password' => $libanswers_stats_pw,
-              ]
+          $response = $client->get('https://ou.libapps.com/libapps/login_process.php', ['cookies' => $jar]);
+          $jar_array = $jar->toArray();
+          $idtn = $jar_array[1]["Value"];
+
+          $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php',
+                            [
+                              'cookies' => $jar,
+                              'allow_redirects' => [
+                                'max' => 10,        // allow at most 10 redirects.
+                                'strict' => TRUE,      // use "strict" RFC compliant redirects.
+                                'track_redirects' => TRUE,
+                              ],
+                              'body' => [
+                                'action' => '1',
+                                'site_id' => '0',
+                                'app_id' => '0',
+                                'target' => '',
+                                'public' => '0',
+                                'mode' => '0',
+                                's-libapps-email' => $libanswers_stats_un,
+                                's-libapps-password' => $libanswers_stats_pw,
+                                'idtn' => $idtn,
+                              ]
             ]);
 
-            $data = $response_login->json();
-            if ($data["errCode"] != "200") {
+
+
+
+
+            $data = $response_login->getStatusCode();
+            if ($data != "200") {
               exit("bad response code, don't log in");
             }
 
-            //passing login info to login page
-            $response_redirect = $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823', ['cookies' => $jar]);
 
-            $temp1 = tmpfile();
+            // passing login info to login page
+            // This login just gets us the right cookies to do the next one.
+            $response_redirect = $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823',
+                                 ['cookies' => $jar]
+            );
+
+
+
+            //looping through each of the interaction options and getting the total number of interactions
+            foreach ($anid as $tempanid) {
+
+
+            $tempfile = tempnam(sys_get_temp_dir(), 'tempfile');
 
             //this is going to be hit once for each interaction type
             //then return the data for the csv to be tallied a few lines down
             $response_data = $client->get('http://libanswers.ou.edu/process_tally.php?m=exportxls2&iid=1355&anid=' . $tempanid .
               '&list=stats&start=' . $libanswersStartDate . '&hrstart=' . $libanswersStartHours, [
               'cookies' => $jar,
-              'save_to' => $temp1
+              'save_to' => $tempfile,
             ]);
 
+            $temp1 = fopen($tempfile, 'r');
             //setting the file position to 0
             fseek($temp1, 0);
 
@@ -266,7 +291,7 @@ class combined_stats_plugin_query extends views_plugin_query {
       '#title' => t('ID of Collection'),
       '#description' => t('The ID of the collection that should return stats
       For OU Libraries the options are as follows: Architecture-Services:13, Architecture-Count:14, Bizzell-Desk:<b>1</b>, BLT:<b>24</b>, Bookmark:<b>8</b>, Branches-Service:<b>2</b>,
-        Business-Service:<b>22</b>, EDGE-Count:<b>20</b>, EIC Count:<b>6</b>, Engineering-Count:<b>10</b>, Engineering-Service:<b>9</b>, FineArts-Count:<b>16</b>, FineArts-Service:<b>15</b>, 
+        Business-Service:<b>22</b>, EDGE-Count:<b>20</b>, EIC Count:<b>6</b>, Engineering-Count:<b>10</b>, Engineering-Service:<b>9</b>, FineArts-Count:<b>16</b>, FineArts-Service:<b>15</b>,
         GovDocs-Service:<b>19</b>, HCLC-Count:<b>5</b>, HCLC-Services:<b>3</b>, HOSService:<b>4</b>, KS-Services:<b>23</b>, WHC-Count:<b>21</b>, Youngblood-Count:<b>7</b>, Youngblood-Service:<b>12</b>'),
       '#default_value' => $this->options['collection'],
       '#maxlength' => 30,
@@ -275,7 +300,7 @@ class combined_stats_plugin_query extends views_plugin_query {
     $form['interactions'] = array(
       '#type' => 'textfield',
       '#title' => t('Types of interactions'),
-      '#description' => t('The anids of the interactions that should return stats. 
+      '#description' => t('The anids of the interactions that should return stats.
         For OU Libraries the options are as follows: Chat:<b>1753</b>, Email:<b>2474</b>, SMS:<b>2476</b>, InPerson:<b>2628</b>, Phone:<b>2629</b>.
         Make it a comma separated list with no spaces.'),
       '#default_value' => $this->options['interactions'],
