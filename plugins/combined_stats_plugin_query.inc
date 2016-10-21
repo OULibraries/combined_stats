@@ -64,17 +64,9 @@ class combined_stats_plugin_query extends views_plugin_query {
           $client = new GuzzleHttp\Client();
           $jar = new GuzzleHttp\Cookie\CookieJar();
 
-          //setting the cookies (I think)
-//          try {
-//            error_log('hello1');
-//            $first = $client->get(
-//              'https://ou.libapps.com/libapps/login_process.php', [
-//              'cookies' => $jar]
-//            );
-
           $response = $client->get('https://ou.libapps.com/libapps/login_process.php', ['cookies' => $jar]);
           $jar_array = $jar->toArray();
-          $new_jar = $jar_array[1]["Value"];
+          $idtn = $jar_array[1]["Value"];
 
           $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php',
                             [
@@ -93,7 +85,7 @@ class combined_stats_plugin_query extends views_plugin_query {
                                 'mode' => '0',
                                 's-libapps-email' => $libanswers_stats_un,
                                 's-libapps-password' => $libanswers_stats_pw,
-                                'idtn' => $new_jar,
+                                'idtn' => $idtn,
                               ]
             ]);
 
