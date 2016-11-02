@@ -66,7 +66,8 @@ class combined_stats_plugin_query extends views_plugin_query {
 
           $response = $client->get('https://ou.libapps.com/libapps/login_process.php', ['cookies' => $jar]);
           $jar_array = $jar->toArray();
-          $idtn = $jar_array[1]["Value"];
+          print_r($jar_array);
+          $idtn = $jar_array[0]["Value"];
 
           $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php',
                             [
