@@ -169,7 +169,7 @@ class combined_stats_plugin_query extends views_plugin_query {
             $accumulativeCount += $arrayCount;
           }
           // set the cache
-          cache_set('combined_stats_suma_stats_data', $accumulativeCount, 'cache', time() + 0);
+          cache_set('combined_stats_suma_stats_data', $accumulativeCount, 'cache', time() + 36000);
         }
       }
       $row = new stdClass();
