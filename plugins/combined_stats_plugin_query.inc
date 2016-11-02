@@ -1,5 +1,6 @@
 <?php
 use GuzzleHttp\Message\Request;
+
 /**
  * @file
  *   Views query plugin for combined stats.
@@ -66,50 +67,43 @@ class combined_stats_plugin_query extends views_plugin_query {
 
           $response = $client->get('https://ou.libapps.com/libapps/login_process.php', ['cookies' => $jar]);
           $jar_array = $jar->toArray();
-          $idtn = $jar_array[1]["Value"];
+          $idtn = in_array('idtn', $jar_array[0]) ? $jar_array[0]['Value'] : $jar_array[1]['Value'];
 
           $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php',
-                            [
-                              'cookies' => $jar,
-                              'allow_redirects' => [
-                                'max' => 10,        // allow at most 10 redirects.
-                                'strict' => TRUE,      // use "strict" RFC compliant redirects.
-                                'track_redirects' => TRUE,
-                              ],
-                              'body' => [
-                                'action' => '1',
-                                'site_id' => '0',
-                                'app_id' => '0',
-                                'target' => '',
-                                'public' => '0',
-                                'mode' => '0',
-                                's-libapps-email' => $libanswers_stats_un,
-                                's-libapps-password' => $libanswers_stats_pw,
-                                'idtn' => $idtn,
-                              ]
+            [
+              'cookies' => $jar,
+              'allow_redirects' => [
+                'max' => 10,        // allow at most 10 redirects.
+                'strict' => TRUE,      // use "strict" RFC compliant redirects.
+                'track_redirects' => TRUE,
+              ],
+              'body' => [
+                'action' => '1',
+                'site_id' => '0',
+                'app_id' => '0',
+                'target' => '',
+                'public' => '0',
+                'mode' => '0',
+                's-libapps-email' => $libanswers_stats_un,
+                's-libapps-password' => $libanswers_stats_pw,
+                'idtn' => $idtn,
+              ]
             ]);
 
+          $data = $response_login->getStatusCode();
+          if ($data != "200") {
+            exit("bad response code, don't log in");
+          }
 
 
+          // passing login info to login page
+          // This login just gets us the right cookies to do the next one.
+          $response_redirect = $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823',
+            ['cookies' => $jar]
+          );
 
-
-            $data = $response_login->getStatusCode();
-            if ($data != "200") {
-              exit("bad response code, don't log in");
-            }
-
-
-            // passing login info to login page
-            // This login just gets us the right cookies to do the next one.
-            $response_redirect = $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823',
-                                 ['cookies' => $jar]
-            );
-
-
-
-            //looping through each of the interaction options and getting the total number of interactions
-            foreach ($anid as $tempanid) {
-
+          //looping through each of the interaction options and getting the total number of interactions
+          foreach ($anid as $tempanid) {
 
             $tempfile = tempnam(sys_get_temp_dir(), 'tempfile');
 
@@ -137,7 +131,7 @@ class combined_stats_plugin_query extends views_plugin_query {
               $tally++;
             }
           }
-            cache_set('combined_stats_libanswers_data', $tally, 'cache', time() + 36000);
+          cache_set('combined_stats_libanswers_data', $tally, 'cache', time() + 36000);
         }
       }
 
@@ -183,8 +177,9 @@ class combined_stats_plugin_query extends views_plugin_query {
       $row->libanswers_count = number_format($tally);
       $row->combined_count = number_format($accumulativeCount + $tally);
     }
-      $view->result[] = $row;
+    $view->result[] = $row;
   }
+
   /**
    * @param int $inc
    * @param int $span
@@ -203,7 +198,7 @@ class combined_stats_plugin_query extends views_plugin_query {
 
   function getLibanswersStartTime($inc = 0, $span = 0) {
     //setting a start date if start date was deleted
-    if ($span == 'hours'){
+    if ($span == 'hours') {
       $time = date('Y-m-d H:i:s');
     }
     else {
@@ -228,7 +223,7 @@ class combined_stats_plugin_query extends views_plugin_query {
     //setting a start hour if hour is the option passed in
     //set the entered time and midnight to the same format
     $time = date('Y-m-d H:i:s', strtotime('-' . $inc . ' ' . $span . ' '));
-    $midnight =date('Y-m-d H:i:s', strtotime('today midnight'));
+    $midnight = date('Y-m-d H:i:s', strtotime('today midnight'));
 
     //set the entered date to central timezone and keep midnight UTC
     $newDate = new DateTime($time, new DateTimeZone('UTC'));
@@ -241,7 +236,7 @@ class combined_stats_plugin_query extends views_plugin_query {
 
     //send back a starting hour of zero if the entered time is
     //previous to midnight
-    if ($strTime<$strMidnight) {
+    if ($strTime < $strMidnight) {
       $tempStartHour = $newMidnight->format('H');
     }
     else {
