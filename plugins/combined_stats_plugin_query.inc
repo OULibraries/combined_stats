@@ -65,7 +65,7 @@ class combined_stats_plugin_query extends views_plugin_query {
           $client = new GuzzleHttp\Client();
           $jar = new GuzzleHttp\Cookie\CookieJar();
 
-          $response = $client->get('https://ou.libapps.com/libapps/login_process.php', ['cookies' => $jar]);
+          $response = $client->get('https://ou.libapps.com/libapps/login.php', ['cookies' => $jar]);
           $jar_array = $jar->toArray();
           $idtn = in_array('idtn', $jar_array[0]) ? $jar_array[0]['Value'] : $jar_array[1]['Value'];
 
@@ -76,6 +76,9 @@ class combined_stats_plugin_query extends views_plugin_query {
                 'max' => 10,        // allow at most 10 redirects.
                 'strict' => TRUE,      // use "strict" RFC compliant redirects.
                 'track_redirects' => TRUE,
+              ],
+              'headers' => [
+                "Referer" => "https://ou.libapps.com/libapps/login.php"
               ],
               'body' => [
                 'action' => '1',
@@ -95,11 +98,12 @@ class combined_stats_plugin_query extends views_plugin_query {
             exit("bad response code, don't log in");
           }
 
+          $client->get('https://ou.libapps.com/libapps/', ['cookies' => $jar]);
 
           // passing login info to login page
           // This login just gets us the right cookies to do the next one.
-          $response_redirect = $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823',
-            ['cookies' => $jar]
+          $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823',
+            ['cookies' => $jar, 'allow_redirects' => TRUE,]
           );
 
           //looping through each of the interaction options and getting the total number of interactions
