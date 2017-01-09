@@ -62,49 +62,51 @@ class combined_stats_plugin_query extends views_plugin_query {
           $anid = explode(',', $arrayedInteractions);
           $tally = 0;
 
-          $client = new GuzzleHttp\Client();
-          $jar = new GuzzleHttp\Cookie\CookieJar();
-
-          $response = $client->get('https://ou.libapps.com/libapps/login.php', ['cookies' => $jar]);
-          $jar_array = $jar->toArray();
-          $idtn = in_array('idtn', $jar_array[0]) ? $jar_array[0]['Value'] : $jar_array[1]['Value'];
-
-          $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php',
-            [
-              'cookies' => $jar,
+          $client = new GuzzleHttp\Client([
+            'defaults' => [
               'allow_redirects' => [
-                'max' => 10,        // allow at most 10 redirects.
+                'max' => 20,        // allow at most 10 redirects.
                 'strict' => TRUE,      // use "strict" RFC compliant redirects.
                 'track_redirects' => TRUE,
-              ],
-              'headers' => [
-                "Referer" => "https://ou.libapps.com/libapps/login.php"
-              ],
-              'body' => [
-                'action' => '1',
-                'site_id' => '0',
-                'app_id' => '0',
-                'target' => '',
-                'public' => '0',
-                'mode' => '0',
-                's-libapps-email' => $libanswers_stats_un,
-                's-libapps-password' => $libanswers_stats_pw,
-                'idtn' => $idtn,
               ]
-            ]);
+            ]
+          ]);
+          $jar = new GuzzleHttp\Cookie\CookieJar();
 
-          $data = $response_login->getStatusCode();
-          if ($data != "200") {
-            exit("bad response code, don't log in");
-          }
+          try {
+            $response = $client->get('https://ou.libapps.com/libapps/login.php', ['cookies' => $jar]);
+            $jar_array = $jar->toArray();
+            $idtn = in_array('idtn', $jar_array[0]) ? $jar_array[0]['Value'] : $jar_array[1]['Value'];
+
+            $response_login = $client->post('https://ou.libapps.com/libapps/login_process.php',
+              [
+                'cookies' => $jar,
+                'headers' => [
+                  "Referer" => "https://ou.libapps.com/libapps/login.php"
+                ],
+                'body' => [
+                  'action' => '1',
+                  'site_id' => '0',
+                  'app_id' => '0',
+                  'target' => '',
+                  'public' => '0',
+                  'mode' => '0',
+                  's-libapps-email' => $libanswers_stats_un,
+                  's-libapps-password' => $libanswers_stats_pw,
+                  'idtn' => $idtn,
+                ]
+              ]);
+
+            $data = $response_login->getStatusCode();
+            if ($data != "200") {
+              exit("bad response code, don't log in");
+            }
 
           $client->get('https://ou.libapps.com/libapps/', ['cookies' => $jar]);
 
           // passing login info to login page
           // This login just gets us the right cookies to do the next one.
-          $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823',
-            ['cookies' => $jar, 'allow_redirects' => TRUE,]
-          );
+          $client->get('https://ou.libapps.com/libapps/login.php?site_id=6823',['cookies' => $jar]);
 
           //looping through each of the interaction options and getting the total number of interactions
           foreach ($anid as $tempanid) {
@@ -134,6 +136,9 @@ class combined_stats_plugin_query extends views_plugin_query {
               }
               $tally++;
             }
+          }
+          } catch (\Exception $e) {
+            watchdog('redirect', $e->getMessage());
           }
           cache_set('combined_stats_libanswers_data', $tally, 'cache', time() + 36000);
         }
@@ -166,7 +171,7 @@ class combined_stats_plugin_query extends views_plugin_query {
                 '&format=%27' . $format . '%27&sdate=' . $startDate . '&offset=' . $offset;
               $response = drupal_http_request($suma_url);
               $sumadata = json_decode($response->data);
-              $arrayCount += count($sumadata->initiative->counts);
+              $arrayCount += isset($sumadata->initiative->counts) ? count($sumadata->initiative->counts) : 0;
               $hasMore = ($sumadata->status->{'has more'});
               $offset = ($hasMore == 'true') ? $sumadata->status->offset : 0;
             }
